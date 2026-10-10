@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Freefall body position lab</title>
+<style>
+:root{--surface-1:#f4f3ee;--surface-2:#fff;--text-primary:#1f1e1d;--text-secondary:#5f5e5a;--text-muted:#888780;--border:rgba(0,0,0,.15);--border-strong:rgba(0,0,0,.3);--radius:8px}
+@media (prefers-color-scheme:dark){:root{--surface-1:#2a2a28;--surface-2:#353533;--text-primary:#f1efe8;--text-secondary:#b4b2a9;--text-muted:#888780;--border:rgba(255,255,255,.15);--border-strong:rgba(255,255,255,.3)}}
+*{box-sizing:border-box}
+body{margin:0 auto;max-width:480px;padding:16px;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--surface-2);color:var(--text-primary);line-height:1.6}
+h1{font-size:22px;font-weight:500;margin:0 0 4px}
+.sub{font-size:14px;color:var(--text-secondary);margin:0 0 16px}
+.grp{font-size:12px;color:var(--text-secondary);margin:0 0 4px}
+.row{display:flex;gap:8px;margin:0 0 12px}
+button{font:inherit;font-size:14px;padding:8px 6px;background:transparent;color:var(--text-primary);border:.5px solid var(--border-strong);border-radius:var(--radius);cursor:pointer;flex:1}
+button:hover{background:var(--surface-1)}
+button.on{background:var(--surface-1);border-color:#7F77DD;font-weight:500}
+input[type=range]{width:100%;accent-color:#7F77DD}
+.card{background:var(--surface-1);border-radius:var(--radius);padding:12px}
+.l{font-size:13px;color:var(--text-secondary)}.v{font-size:22px;font-weight:500}
+.foot{font-size:12px;color:var(--text-secondary);margin-top:20px}
+</style>
+</head>
+<body>
+<h1>Freefall body position lab</h1>
+<p class="sub">A live physics model: wind forces act on each body part, so your posture decides how you fall. Move a slider and watch the position change.</p>
+<div class="grp">Start from a position</div>
+<div class="row"><button data-m="box">Box</button><button data-m="delta">Delta</button><button data-m="track">Track</button><button data-m="back">Back fly</button></div>
+<div class="row"><button data-m="sit">Sit fly</button><button data-m="stand">Stand</button><button data-m="headdown">Head down</button></div>
+<div id="info" style="font-size:14px;margin:0 0 12px;padding:12px;border-left:3px solid #7F77DD;background:var(--surface-1);border-radius:0 8px 8px 0"></div>
+<div id="live" style="font-size:15px;font-weight:500;margin:0 0 8px">Now: -</div>
+<div class="card" style="padding:8px;margin:0 0 12px">
+<svg id="sv" viewBox="0 0 380 300" width="100%" role="img" aria-label="Live side view of a skydiver falling, with wind streaks"><g id="wind" stroke="var(--text-muted)" stroke-width="1.5" stroke-linecap="round"></g><g id="fig"></g></svg>
+</div>
+<div class="row" style="margin-bottom:12px"><button id="nudge">Nudge (small push)</button><button id="reset">Reset position</button></div>
+<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:0 0 16px">
+<div class="card"><div class="l">Fall speed</div><div class="v" id="m-v">-</div></div>
+<div class="card"><div class="l">Sideways travel</div><div class="v" id="m-f">-</div></div>
+<div class="card"><div class="l">Stability</div><div class="v" id="m-s">-</div></div>
+<div class="card"><div class="l">Angle from belly-down</div><div class="v" id="m-p">-</div></div>
+</div>
+<div id="why" style="font-size:14px;margin:0 0 16px;padding:12px;border:.5px solid var(--border);border-radius:8px"></div>
+<div id="ctl"></div>
+<p class="foot">Simplified 2D model: each body part is a flat plate with drag, no real pilot corrections, and speeds are approximate. It builds intuition and is not a substitute for coaching. Back fly, sit fly, stand, and head down need proper coaching. Always confirm technique with your instructor.</p>
+<script>
+const KN=0.7,KT=0.15,G=9.81,R=Math.PI/180;
+function body(p){
+const b=p.arch*0.4*R,h=p.hips*R,k=p.knees*R,a=p.ankle*R;
+const O=[0,0],S=[.25*Math.cos(b),-.25*Math.sin(b)],H=[-.25*Math.cos(b),-.25*Math.sin(b)];
+const pt=b-Math.PI-h,pc=pt+k,pf=pc+a;
+const K1=[H[0]+.45*Math.cos(pt),H[1]+.45*Math.sin(pt)],A=[K1[0]+.42*Math.cos(pc),K1[1]+.42*Math.sin(pc)],F=[A[0]+.2*Math.cos(pf),A[1]+.2*Math.sin(pf)];
+const aa=p.arms*R,fa=aa+p.elbow*R;
+const E=[S[0]+.3*Math.cos(aa),S[1]+.3*Math.sin(aa)],W=[E[0]+.26*Math.cos(fa),E[1]+.26*Math.sin(fa)];
+const Hd=[S[0]+.17*Math.cos(b),S[1]-.17*Math.sin(b)];
+const L=[[O,S,.12,22],[O,H,.10,18],[H,K1,.13,12],[K1,A,.12,6],[A,F,.03,2],[S,E,.06,5],[E,W,.045,4]];
+const P=L.map(([s,e,ar,m])=>{const dx=e[0]-s[0],dy=e[1]-s[1],l=Math.hypot(dx,dy);return{c:[(s[0]+e[0])/2,(s[1]+e[1])/2],t:[dx/l,dy/l],n:[-dy/l,dx/l],A:ar,m,l}});
+P.push({c:Hd,iso:1,A:.035,m:5,l:.2,t:[1,0],n:[0,1]});
+let M=0,cx=0,cy=0;P.forEach(q=>{M+=q.m;cx+=q.m*q.c[0];cy+=q.m*q.c[1]});cx/=M;cy/=M;
+let I=0;P.forEach(q=>{q.r=[q.c[0]-cx,q.c[1]-cy];I+=q.m*(q.r[0]**2+q.r[1]**2+q.l*q.l/12)});
+return{P,M,I,com:[cx,cy],pts:{O,S,H,K1,A,F,E,W,Hd}};
+}
+function step(s,B,dt){
+const c=Math.cos(s.th),sn=Math.sin(s.th);let Fx=0,Fy=0,T=0;
+for(const q of B.P){
+const rx=q.r[0]*c-q.r[1]*sn,ry=q.r[0]*sn+q.r[1]*c,vx=s.vx-s.w*ry,vy=s.vy+s.w*rx;let fx,fy;
+if(q.iso){const sp=Math.hypot(vx,vy);fx=-KN*q.A*sp*vx;fy=-KN*q.A*sp*vy}
+else{const nx=q.n[0]*c-q.n[1]*sn,ny=q.n[0]*sn+q.n[1]*c,tx=q.t[0]*c-q.t[1]*sn,ty=q.t[0]*sn+q.t[1]*c;
+const vn=vx*nx+vy*ny,vt=vx*tx+vy*ty,fn=-KN*q.A*Math.abs(vn)*vn,ft=-KT*q.A*Math.abs(vt)*vt;fx=fn*nx+ft*tx;fy=fn*ny+ft*ty}
+Fx+=fx;Fy+=fy;T+=rx*fy-ry*fx}
+s.vx+=Fx/B.M*dt;s.vy+=(Fy/B.M+G)*dt;s.w+=T/B.I*dt;s.th+=s.w*dt;
+}
+const C=[['arch','Arch',-50,100,'reversed','deep arch'],['hips','Hips',-20,110,'extended','piked (sitting)'],['knees','Knees',0,130,'straight','bent'],['ankle','Toes',-50,30,'pointed','flexed up'],['arms','Arms',-40,175,'reaching forward','at sides']];
+let h='';C.forEach(c=>{h+='<div style="margin:0 0 14px"><div style="display:flex;justify-content:space-between;font-size:14px"><span>'+c[1]+'</span><span id="o-'+c[0]+'" style="font-weight:500"></span></div><input type="range" id="'+c[0]+'" min="'+c[2]+'" max="'+c[3]+'" step="1"><div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-secondary)"><span>'+c[4]+'</span><span>'+c[5]+'</span></div></div>'});
+document.getElementById('ctl').innerHTML=h;
+const M={
+box:{th:3,p:{arch:70,hips:14,knees:41,ankle:0,arms:48,elbow:-35},i:'The neutral base. Arched so your hips are the low point, with arms and legs up high. Wind pushes up above your center of mass, which keeps you righting itself.'},
+delta:{th:14,p:{arch:57,hips:2,knees:1,ankle:-19,arms:-25,elbow:32},i:'Legs straight and toes pointed give a small head-low angle. A bit of the fall turns into forward motion.'},
+track:{th:32,p:{arch:2,hips:-4,knees:1,ankle:-44,arms:-28,elbow:-17},i:'Flat body, straight legs, pointed toes: a steep head-low angle that trades fall rate for distance across the sky.'},
+back:{th:180,p:{arch:-42,hips:28,knees:2,ankle:-7,arms:-20,elbow:-48},i:'Belly up. The curve is reversed compared with belly flying, so your limbs sit on the sky side. You cannot see the ground, so check altitude often.'},
+sit:{th:-90,p:{arch:49,hips:94,knees:130,ankle:22,arms:21,elbow:-56},i:'Torso upright, thighs forward, legs folded. Open the hips too far and the pressure moves back, tipping you onto your back.'},
+stand:{th:-90,p:{arch:16,hips:11,knees:9,ankle:-11,arms:42,elbow:-86},i:'Feet down and streamlined. It falls fast and small errors rock you.'},
+headdown:{th:90,p:{arch:-8,hips:-8,knees:5,ankle:-35,arms:153,elbow:-9},i:'Inverted and streamlined, the fastest here. Small asymmetries rotate you, so it needs coaching and a stable recovery plan.'}};
+const $=i=>document.getElementById(i);
+let cur='box',P={...M.box.p},B=body(P),s={th:3*R,w:0,vx:0,vy:45},ew=0,lab=null,cand=null,cc=0,note='';
+const dgr=x=>{x=x/R%360;if(x>180)x-=360;if(x<-180)x+=360;return x};
+function label(){
+const uy=Math.sin(s.th),ny=Math.cos(s.th);
+if(Math.abs(s.w)>1)return'Rotating';
+if(Math.abs(ny)>=Math.abs(uy)){if(ny>0){const t=Math.asin(Math.max(-1,Math.min(1,uy)))/R;return t>24?'Track / steep angle':t>9?'Delta (head-low belly)':t<-12?'Belly, head high':'Box (belly to earth)'}return'Back fly'}
+return uy<0?(P.hips>60?'Sit fly':'Stand (feet down)'):'Head down';
+}
+function why(l,st){
+if(l==='Rotating')return'The wind is pushing unevenly on your body, so you are rotating. Change arch or hips to move the pressure back under your center of mass.';
+const t=[];
+if(l.startsWith('Back'))t.push(P.arch<0?'A reverse arch puts your limbs on the sky side, which keeps back fly steady.':'Without a reverse arch, back fly is shaky and you may roll away from it.');
+else if(l==='Sit fly')t.push('Thighs and arms catch wind ahead of your center, balanced by the folded legs underneath. Opening the hips shifts that pressure back.');
+else if(l.startsWith('Stand')||l==='Head down')t.push('A streamlined body has little drag, so you fall fast and small asymmetries rotate you.');
+else t.push(P.arch>35?'The raised ends of your arch put the wind force above your center of mass, so the pose rights itself.':'With little arch nothing rights you, so you slide head-low and speed up.');
+if(P.hips>40&&!l.startsWith('Sit'))t.push('Piking the hips folds you toward a seat and moves drag toward the front.');
+if(st==='Unstable')t.push('You are rocking. Wait to see where you settle, or nudge less.');
+return t.join(' ');
+}
+function setMode(k){cur=k;P={...M[k].p};C.forEach(c=>{$(c[0]).value=P[c[0]]});B=body(P);s={th:M[k].th*R,w:0,vx:0,vy:45};ew=0;lab=null;cand=null;note='';$('info').textContent=M[k].i;document.querySelectorAll('button[data-m]').forEach(b=>b.classList.toggle('on',b.dataset.m===k))}
+C.forEach(c=>$(c[0]).addEventListener('input',()=>{P[c[0]]=+$(c[0]).value;B=body(P)}));
+document.querySelectorAll('button[data-m]').forEach(b=>b.addEventListener('click',()=>setMode(b.dataset.m)));
+$('reset').addEventListener('click',()=>setMode(cur));
+$('nudge').addEventListener('click',()=>{s.w+=(Math.random()<.5?-1:1)*1.2});
+const W=[];for(let i=0;i<18;i++)W.push([Math.random()*380,Math.random()*300]);
+let last=performance.now();
+function frame(now){
+const dt=Math.min(.05,(now-last)/1000);last=now;
+const n=Math.min(12,Math.round(dt*3/.005));for(let i=0;i<n;i++)step(s,B,.005);
+ew=ew*.98+Math.abs(s.w)*.02;
+const sp=Math.hypot(s.vx,s.vy)||1,wx=-s.vx/sp,wy=-s.vy/sp;
+let wd='';for(const q of W){q[0]+=wx*sp*dt*2.2;q[1]+=wy*sp*dt*2.2;if(q[1]<-10)q[1]+=320;if(q[1]>310)q[1]-=320;if(q[0]<-10)q[0]+=400;if(q[0]>390)q[0]-=400;wd+='<line x1="'+q[0].toFixed(0)+'" y1="'+q[1].toFixed(0)+'" x2="'+(q[0]+wx*16).toFixed(0)+'" y2="'+(q[1]+wy*16).toFixed(0)+'"/>'}
+$('wind').innerHTML=wd;
+const c=Math.cos(s.th),sn=Math.sin(s.th),T=p=>{const x=p[0]-B.com[0],y=p[1]-B.com[1];return[(190+100*(x*c-y*sn)).toFixed(1),(140+100*(x*sn+y*c)).toFixed(1)]},pt=B.pts;
+const pl=a=>a.map(p=>T(p).join(',')).join(' '),hd=T(pt.Hd);
+$('fig').innerHTML='<polyline points="'+pl([pt.H,pt.O,pt.S])+'" fill="none" stroke="var(--text-primary)" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/><polyline points="'+pl([pt.H,pt.K1,pt.A,pt.F])+'" fill="none" stroke="#1D9E75" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><polyline points="'+pl([pt.S,pt.E,pt.W])+'" fill="none" stroke="#7F77DD" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="'+hd[0]+'" cy="'+hd[1]+'" r="10" fill="var(--surface-2)" stroke="var(--text-primary)" stroke-width="2.5"/>';
+const l=label();if(l!==cand){cand=l;cc=0}else cc++;
+if(cc===30&&l!==lab){if(lab&&lab!=='Rotating')note='Changed from '+lab+' to '+l+'.';lab=l}
+const st=ew<.06?'Settled':ew<.5?'Rocking':'Unstable',nxx=-sn,hx=Math.abs(Math.cos(s.th))>=Math.abs(sn)?c:nxx;
+$('live').textContent='Now: '+(lab||l)+(note&&lab&&lab!=='Rotating'?'  |  '+note:'');
+$('m-v').textContent=Math.round(s.vy*3.6)+' km/h';
+const tv=s.vx*(hx>=0?1:-1)*3.6;$('m-f').textContent=Math.round(Math.abs(tv))+' km/h '+(Math.abs(tv)<3?'':(tv>0?'ahead':'behind'));
+$('m-s').textContent=st;$('m-p').textContent=Math.round(dgr(s.th))+'°';
+$('o-arch').textContent=P.arch+'°';$('o-hips').textContent=P.hips+'°';$('o-knees').textContent=P.knees+'°';$('o-ankle').textContent=P.ankle<-15?'pointed':P.ankle>15?'flexed':'neutral';$('o-arms').textContent=P.arms+'°';
+$('why').textContent=why(lab||l,st);
+requestAnimationFrame(frame);
+}
+setMode('box');requestAnimationFrame(frame);
+</script>
+</body>
+</html>
