@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Freefall body position lab</title>
+<style>
+:root{--surface-1:#f4f3ee;--surface-2:#fff;--text-primary:#1f1e1d;--text-secondary:#5f5e5a;--text-muted:#888780;--border:rgba(0,0,0,.15);--border-strong:rgba(0,0,0,.3);--radius:8px}
+@media (prefers-color-scheme:dark){:root{--surface-1:#2a2a28;--surface-2:#353533;--text-primary:#f1efe8;--text-secondary:#b4b2a9;--text-muted:#888780;--border:rgba(255,255,255,.15);--border-strong:rgba(255,255,255,.3)}}
+*{box-sizing:border-box}
+body{margin:0 auto;max-width:480px;padding:16px;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--surface-2);color:var(--text-primary);line-height:1.6}
+h1{font-size:22px;font-weight:500;margin:0 0 4px}
+.sub{font-size:14px;color:var(--text-secondary);margin:0 0 16px}
+.grp{font-size:12px;color:var(--text-secondary);margin:0 0 4px}
+.row{display:flex;gap:8px;margin:0 0 12px}
+button{font:inherit;font-size:14px;padding:8px 6px;background:transparent;color:var(--text-primary);border:.5px solid var(--border-strong);border-radius:var(--radius);cursor:pointer;flex:1}
+button:hover{background:var(--surface-1)}
+button.on{background:var(--surface-1);border-color:#7F77DD;font-weight:500}
+input[type=range]{width:100%;accent-color:#7F77DD}
+.foot{font-size:12px;color:var(--text-secondary);margin-top:20px}
+</style>
+</head>
+<body>
+<h1>Freefall body position lab</h1>
+<p class="sub">Pick a position, then change torso angle, arch, hips, legs, toes, and arms to see fall speed, drive, and stability change.</p>
+<div class="grp">Belly and back</div>
+<div class="row"><button data-m="box">Box</button><button data-m="delta">Delta</button><button data-m="track">Track</button><button data-m="back">Back fly</button></div>
+<div class="grp">Upright and vertical</div>
+<div class="row"><button data-m="sit">Sit fly</button><button data-m="stand">Stand</button><button data-m="headdown">Head down</button></div>
+<div id="info" style="font-size:14px;line-height:1.6;margin:0 0 12px;padding:12px;border-left:3px solid #7F77DD;background:var(--surface-1);border-radius:0 var(--radius) var(--radius) 0;"></div>
+<div style="background:var(--surface-1);border-radius:12px;padding:8px;margin:0 0 12px;">
+<svg viewBox="0 0 380 290" width="100%" role="img" aria-label="Side view of a skydiver in freefall with wind from below">
+<defs><marker id="ah" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M1 1L9 5L1 9" fill="none" stroke="context-stroke" stroke-width="1.5"/></marker></defs>
+<g stroke="var(--text-muted)" stroke-width="1.5" marker-end="url(#ah)">
+<line x1="40" y1="284" x2="40" y2="256"/><line x1="115" y1="284" x2="115" y2="256"/><line x1="190" y1="284" x2="190" y2="256"/><line x1="265" y1="284" x2="265" y2="256"/><line x1="340" y1="284" x2="340" y2="256"/>
+</g>
+<text x="12" y="18" font-size="12" fill="var(--text-secondary)">Relative wind comes from below</text>
+<g id="fig" transform="translate(185,125)"><g id="fig-in"></g></g>
+</svg>
+</div>
+<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:0 0 16px;">
+<div style="background:var(--surface-1);border-radius:var(--radius);padding:12px;"><div style="font-size:13px;color:var(--text-secondary)">Fall speed</div><div style="font-size:22px;font-weight:500" id="m-v">-</div></div>
+<div style="background:var(--surface-1);border-radius:var(--radius);padding:12px;"><div style="font-size:13px;color:var(--text-secondary)" id="m-f-l">Forward drive</div><div style="font-size:22px;font-weight:500" id="m-f">-</div></div>
+<div style="background:var(--surface-1);border-radius:var(--radius);padding:12px;"><div style="font-size:13px;color:var(--text-secondary)">Stability</div><div style="font-size:22px;font-weight:500" id="m-s">-</div></div>
+<div style="background:var(--surface-1);border-radius:var(--radius);padding:12px;"><div style="font-size:13px;color:var(--text-secondary)" id="m-p-l">Body pitch</div><div style="font-size:22px;font-weight:500" id="m-p">-</div></div>
+</div>
+<div id="why" style="font-size:14px;line-height:1.6;margin:0 0 16px;padding:12px;border:0.5px solid var(--border);border-radius:var(--radius);"></div>
+<div id="ctl"></div>
+<p class="foot">A simplified model for building intuition, not wind-tunnel data and not a substitute for coaching. Back fly, sit fly, stand, and head down need proper coaching. Always confirm technique with your instructor.</p>
+<script>
+const C=[['ang','Torso angle (head low)',0,40,'flat','head down'],['arch','Arch',0,100,'flat / hunched','deep arch'],['hips','Hips (pike)',0,90,'straight','piked'],['legs','Legs',0,100,'knees bent','straight'],['toes','Toes',-100,100,'pointed','flexed up'],['arms','Arms',0,100,'back','forward']];
+let h='';
+C.forEach(c=>{h+='<div style="margin:0 0 14px"><div style="display:flex;justify-content:space-between;font-size:14px"><span id="n-'+c[0]+'">'+c[1]+'</span><span id="o-'+c[0]+'" style="font-weight:500"></span></div><input type="range" id="'+c[0]+'" min="'+c[2]+'" max="'+c[3]+'" step="1"><div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-secondary)"><span id="l-'+c[0]+'">'+c[4]+'</span><span id="r-'+c[0]+'">'+c[5]+'</span></div></div>'});
+document.getElementById('ctl').innerHTML=h;
+// p = [torso angle, arch, hips, legs, toes, arms]
+const M={
+box:{rot:0,fl:1,v:200,k:1.2,st:100,ai:60,p:[0,60,0,50,0,50]},
+delta:{rot:0,fl:1,v:200,k:1.2,st:100,ai:60,p:[12,45,0,85,-30,20]},
+track:{rot:0,fl:1,v:200,k:1.2,st:100,ai:60,p:[28,25,0,100,-80,5]},
+back:{rot:0,fl:-1,v:210,k:1.2,st:88,ai:55,p:[0,55,10,45,0,55]},
+sit:{rot:-90,fl:1,v:255,k:0.6,st:80,ai:30,vert:1,p:[0,30,80,40,0,60]},
+stand:{rot:-90,fl:1,v:275,k:0.6,st:72,ai:20,vert:1,p:[0,20,0,100,-60,40]},
+headdown:{rot:90,fl:1,v:310,k:0.6,st:68,ai:20,vert:1,p:[0,20,0,90,-70,10]}};
+const INFO={
+box:'The neutral base. Hips slightly forward, moderate arch, knees about 90 degrees. Air meets your whole belly, so you fall steadily and balance with small inputs.',
+delta:'Legs straight and arms swept back tip you slightly head-low, so part of the fall turns into forward motion.',
+track:'A flatter, streamlined body at a steeper head-low angle. You trade fall rate for forward distance.',
+back:'Belly up with the wind on your back. You are less stable than on your belly and cannot see the ground, so check your altitude often.',
+sit:'Torso upright, thighs forward like sitting in a chair, arms out front. The wind hits your back and seat, so you fall much faster than in the box.',
+stand:'Feet down, body straight and upright. Very streamlined and fast, and small errors rock you, so arm and leg trim matter a lot.',
+headdown:'Inverted and streamlined, the fastest position here. Small asymmetries rock you, so it needs coaching and a plan for a stable recovery.'};
+const $=i=>document.getElementById(i);
+const R=Math.PI/180,f=n=>n.toFixed(1);
+let cur='box';
+function draw(arch,hips,legs,toes,arms,vert){
+const o=arch/100*14,al=(5+arch*0.12-hips)*R,H=[-40,0],S=[40,0];
+const K=[H[0]-Math.cos(al)*36,H[1]-Math.sin(al)*36];
+const b=al+(100-legs)/100*Math.PI/2;
+const A=[K[0]-Math.cos(b)*36,K[1]-Math.sin(b)*36];
+const g=b+toes/100*50*R;
+const F=[A[0]-Math.cos(g)*13,A[1]-Math.sin(g)*13];
+const aa=(160-(vert?90:130)*arms/100)*R,E=[S[0]+Math.cos(aa)*24,S[1]+Math.sin(aa)*24];
+const fa=aa-45*R,W=[E[0]+Math.cos(fa)*22,E[1]+Math.sin(fa)*22];
+const hy=-8-arch*0.06;
+$('fig-in').innerHTML=
+'<path d="M'+f(H[0])+' '+f(H[1])+' Q0 '+f(2*o)+' '+f(S[0])+' '+f(S[1])+'" fill="none" stroke="var(--text-primary)" stroke-width="10" stroke-linecap="round"/>'+
+'<polyline points="'+[H,K,A,F].map(p=>f(p[0])+','+f(p[1])).join(' ')+'" fill="none" stroke="#1D9E75" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>'+
+'<polyline points="'+[S,E,W].map(p=>f(p[0])+','+f(p[1])).join(' ')+'" fill="none" stroke="#7F77DD" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>'+
+'<circle cx="56" cy="'+f(hy)+'" r="10" fill="var(--surface-2)" stroke="var(--text-primary)" stroke-width="2.5"/>';
+}
+function update(){
+const m=M[cur],vt=!!m.vert,v={};C.forEach(c=>{v[c[0]]=+$(c[0]).value});
+const r=vt?[m.p[3],m.p[4],m.p[5]]:[50,0,50];
+const trim=(v.legs-r[0])/50*3+(v.toes-r[1])/100*3-(v.arms-r[2])/50*3-(v.hips-m.p[2])/90*4;
+const pitch=Math.max(-10,Math.min(45,v.ang+trim));
+const vs=m.v*(1-(vt?0.3:0.6)*Math.sin(pitch*R))*(1-(v.arch-50)/50*0.08)*(1+(v.hips-m.p[2])/90*0.06)*(vt?1-(v.arms-m.p[5])/50*0.06:1);
+const fw=vs*Math.tan(pitch*R)*m.k;
+const st=Math.max(10,Math.min(100,m.st-Math.abs(v.arch-m.ai)*0.5-Math.abs(pitch)*0.5));
+$('fig').setAttribute('transform','translate(185,125) rotate('+f(m.rot+pitch)+') scale(0.9,'+f(0.9*m.fl)+')');
+draw(v.arch,v.hips,v.legs,v.toes,v.arms,vt);
+$('m-v').textContent=Math.round(vs)+' km/h';
+$('m-f-l').textContent=fw<-1?'Backslide':'Forward drive';
+$('m-f').textContent=Math.round(Math.abs(fw))+' km/h';
+$('m-s').textContent=Math.round(st)+'%';
+$('m-p-l').textContent=vt?'Lean':'Body pitch';
+$('m-p').textContent=Math.round(pitch)+'°';
+$('o-ang').textContent=v.ang+'°';
+$('o-arch').textContent=v.arch+'%';
+$('o-hips').textContent=v.hips+'°';
+$('o-legs').textContent=v.legs+'% straight';
+$('o-toes').textContent=v.toes<-20?'pointed':v.toes>20?'flexed':'neutral';
+$('o-arms').textContent=v.arms+'%';
+const t=[];
+if(!vt){
+if(v.legs>=70)t.push('Straight legs put more area behind your center, lifting the tail and tipping the nose down, which adds forward drive.');
+else if(v.legs<=30)t.push('Deeply bent knees turn the calves edge-on to the wind, so the tail sinks and you tend to slide backward.');
+else t.push('Moderate knee bend keeps the tail drag balanced, which is the neutral position.');
+if(v.hips>=40)t.push('Piking the hips folds you toward a seat, adding drag up front and raising the nose.');
+if(v.toes>25)t.push('Flexed toes catch extra air at the feet, a small push toward head-low.');
+if(v.toes<-25)t.push('Pointed toes streamline the feet, so there is less drag at the tail.');
+if(v.arch>75)t.push('A deep arch slows the fall but can make you rock and pitch.');
+else if(v.arch<35)t.push('A flat or hunched torso falls faster and is less stable.');
+else if(v.arms>70)t.push('Arms far forward add drag at the front and lift the nose.');
+else if(v.arms<30)t.push('Arms back streamline the front, which helps the head-low angle.');
+}else{
+if(v.hips>=60)t.push('Piked hips fold you into a seat, so your back and thighs take the wind and you fall slower than a straight body.');
+else if(v.hips<=20)t.push('A straight body is the most streamlined shape, so you fall fast.');
+else t.push('Partly folded hips sit between streamlined and seated.');
+if(v.arms>m.p[5]+25)t.push('Arms out wider add drag and stability, which slows you down.');
+else if(v.arms<m.p[5]-25)t.push('Arms tucked in make you faster and easier to rock.');
+if(v.toes>25)t.push('Flexed toes catch extra air at the feet.');
+if(v.toes<-25)t.push('Pointed toes streamline the feet.');
+if(Math.abs(pitch)>10)t.push('Leaning from vertical turns some of the fall into travel across the sky.');
+}
+$('why').textContent=t.slice(0,3).join(' ');
+}
+function setMode(k){
+cur=k;const m=M[k],vt=!!m.vert;
+C.forEach((c,i)=>{$(c[0]).value=m.p[i]});
+$('n-ang').textContent=vt?'Lean from vertical':'Torso angle (head low)';
+$('l-ang').textContent=vt?'upright':'flat';$('r-ang').textContent=vt?'leaning':'head down';
+$('l-arms').textContent=vt?'tucked':'back';$('r-arms').textContent=vt?'out front':'forward';
+$('info').textContent=INFO[k];
+document.querySelectorAll('button[data-m]').forEach(b=>b.classList.toggle('on',b.dataset.m===k));
+update();
+}
+C.forEach(c=>$(c[0]).addEventListener('input',update));
+document.querySelectorAll('button[data-m]').forEach(b=>b.addEventListener('click',()=>setMode(b.dataset.m)));
+setMode('box');
+</script>
+</body>
+</html>
